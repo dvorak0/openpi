@@ -58,6 +58,8 @@ if ! timeout "$CLIENT_TIMEOUT" /.venv/bin/python examples/simple_client/main.py 
   --host 127.0.0.1 \
   --port "$PORT" \
   --env "$ENV_NAME" \
+  --websocket-ping-interval 0 \
+  --websocket-ping-timeout 0 \
   --num-steps "$NUM_STEPS" >"$CLIENT_LOG" 2>&1; then
   echo "Inference client failed or timed out. Server log:" >&2
   cat "$SERVER_LOG" >&2

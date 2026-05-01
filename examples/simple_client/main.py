@@ -33,6 +33,10 @@ class Args:
     port: int | None = 8000
     # API key to use for the server.
     api_key: str | None = None
+    # Websocket keepalive interval in seconds. Set to 0 to disable keepalive pings.
+    websocket_ping_interval: float = 20
+    # Websocket keepalive timeout in seconds. Set to 0 to disable keepalive ping timeouts.
+    websocket_ping_timeout: float = 20
     # Number of steps to run the policy for.
     num_steps: int = 20
     # Path to save the timings to a parquet file. (e.g., timing.parquet)
@@ -126,6 +130,8 @@ def main(args: Args) -> None:
         host=args.host,
         port=args.port,
         api_key=args.api_key,
+        ping_interval=args.websocket_ping_interval or None,
+        ping_timeout=args.websocket_ping_timeout or None,
     )
     logger.info(f"Server metadata: {policy.get_server_metadata()}")
 
