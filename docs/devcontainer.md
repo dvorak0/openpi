@@ -10,10 +10,28 @@ It is intended for workflows such as testing on `nixos-1` under
 From the repository root:
 
 ```bash
+scripts/devcontainer_build.sh
+```
+
+Equivalent raw Docker command:
+
+```bash
 docker build -f .devcontainer/Dockerfile -t openpi-dev:local .
 ```
 
 ## Run with mounted source
+
+```bash
+scripts/devcontainer_run.sh
+```
+
+Or run a command directly inside the mounted-source container:
+
+```bash
+scripts/devcontainer_run.sh scripts/devcontainer_smoke_test.sh
+```
+
+Equivalent raw Docker command:
 
 ```bash
 mkdir -p "${OPENPI_DATA_HOME:-$HOME/.cache/openpi}"
@@ -24,12 +42,6 @@ docker run --rm -it --device nvidia.com/gpu=all --network host \
   openpi-dev:local bash
 ```
 
-Inside the container, run the smoke test:
-
-```bash
-scripts/devcontainer_smoke_test.sh
-```
-
 The `--device nvidia.com/gpu=all` flag matches the CDI-style NVIDIA setup on
 `nixos-1`. On hosts configured with the classic NVIDIA Docker runtime, replace it
 with `--gpus all`.
@@ -37,6 +49,24 @@ with `--gpus all`.
 The smoke test fails fast if the prebuilt virtualenv is missing, verifies that
 core modules import, prints JAX/Torch device visibility, and runs a small pytest
 subset that does not require downloading model checkpoints.
+
+## Inference smoke test
+
+After the basic smoke test passes, this command starts the policy server and
+queries it with the simple client:
+
+```bash
+scripts/devcontainer_run.sh scripts/devcontainer_inference_smoke_test.sh
+```
+
+Defaults:
+
+- `OPENPI_SMOKE_ENV=ALOHA_SIM`
+- `OPENPI_SMOKE_PORT=8000`
+- `OPENPI_SMOKE_NUM_STEPS=1`
+
+The first run downloads the selected checkpoint into `OPENPI_DATA_HOME`, so it
+can take a while and requires enough disk/GPU memory for the selected model.
 
 ## VS Code / Dev Containers
 
