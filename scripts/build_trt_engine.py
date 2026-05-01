@@ -19,14 +19,25 @@ class Args:
 
 
 def main(args: Args) -> None:
-    os.makedirs(os.path.dirname(args.engine), exist_ok=True)
+    engine_dir = os.path.dirname(args.engine)
+    if engine_dir:
+        os.makedirs(engine_dir, exist_ok=True)
     logger = trt.Logger(trt.Logger.INFO)
     builder = trt.Builder(logger)
     network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
     parser = trt.OnnxParser(network, logger)
 
-    with open(args.onnx, "rb") as f:
-        parsed = parser.parse(f.read())
+    # TensorRT resolves ONNX external data paths relative to the current working directory.
+    # Exported large models often place external data next to the ONNX file, so parse from that directory.
+    onnx_path = os.path.abspath(args.onnx)
+    onnx_dir = os.path.dirname(onnx_path)
+    old_cwd = os.getcwd()
+    os.chdir(onnx_dir)
+    try:
+        with open(os.path.basename(onnx_path), "rb") as f:
+            parsed = parser.parse(f.read())
+    finally:
+        os.chdir(old_cwd)
     print(f"parse_ok={parsed} errors={parser.num_errors}", flush=True)
     for i in range(parser.num_errors):
         print(parser.get_error(i), flush=True)

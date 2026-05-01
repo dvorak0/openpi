@@ -120,7 +120,7 @@ def _prepare_prefix(model, observation):
     return state, prefix_pad_masks, past_key_values
 
 
-def _sample_with_trt(model, trt_denoise, state, prefix_pad_masks, past_key_values, noise, num_steps: int):
+def _sample_with_trt(trt_denoise, state, prefix_pad_masks, past_key_values, noise, num_steps: int):
     dt = torch.tensor(-1.0 / num_steps, dtype=torch.float32, device=noise.device)
     x_t = noise
     time_value = torch.tensor(1.0, dtype=torch.float32, device=noise.device)
@@ -152,14 +152,14 @@ def main(args: Args) -> None:
         print(f"single_step_diff max_abs={max_abs_diff:.6f} mean_abs={mean_abs_diff:.6f}", flush=True)
 
         for _ in range(args.warmup):
-            _sample_with_trt(model, trt_denoise, state, prefix_pad_masks, past_key_values, noise, args.num_steps)
+            _sample_with_trt(trt_denoise, state, prefix_pad_masks, past_key_values, noise, args.num_steps)
         torch.cuda.synchronize()
 
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         start.record()
         for _ in range(args.iterations):
-            _sample_with_trt(model, trt_denoise, state, prefix_pad_masks, past_key_values, noise, args.num_steps)
+            _sample_with_trt(trt_denoise, state, prefix_pad_masks, past_key_values, noise, args.num_steps)
         end.record()
         torch.cuda.synchronize()
         trt_loop_ms = start.elapsed_time(end) / args.iterations
@@ -190,6 +190,58 @@ def main(args: Args) -> None:
         torch.cuda.synchronize()
         torch_loop_ms = start.elapsed_time(end) / args.iterations
         print(f"torch_denoise_loop_ms={torch_loop_ms:.4f} num_steps={args.num_steps} iterations={args.iterations}", flush=True)
+
+        def hybrid_sample_actions():
+            prepared_state, prepared_prefix_pad_masks, prepared_past_key_values = _prepare_prefix(model, observation)
+            return _sample_with_trt(
+                trt_denoise,
+                prepared_state,
+                prepared_prefix_pad_masks,
+                prepared_past_key_values,
+                noise,
+                args.num_steps,
+            )
+
+        hybrid_ref = hybrid_sample_actions()
+        torch_actions_ref = model.sample_actions(args.device, observation, noise=noise, num_steps=args.num_steps)
+        torch.cuda.synchronize()
+        hybrid_max_abs_diff = (torch_actions_ref - hybrid_ref).abs().max().item()
+        hybrid_mean_abs_diff = (torch_actions_ref - hybrid_ref).abs().mean().item()
+        print(
+            f"hybrid_sample_diff max_abs={hybrid_max_abs_diff:.6f} mean_abs={hybrid_mean_abs_diff:.6f}",
+            flush=True,
+        )
+
+        for _ in range(args.warmup):
+            hybrid_sample_actions()
+            model.sample_actions(args.device, observation, noise=noise, num_steps=args.num_steps)
+        torch.cuda.synchronize()
+
+        hybrid_times = []
+        torch_times = []
+        for _ in range(args.iterations):
+            torch.cuda.synchronize()
+            start_time = time.time()
+            hybrid_sample_actions()
+            torch.cuda.synchronize()
+            hybrid_times.append((time.time() - start_time) * 1000)
+
+            torch.cuda.synchronize()
+            start_time = time.time()
+            model.sample_actions(args.device, observation, noise=noise, num_steps=args.num_steps)
+            torch.cuda.synchronize()
+            torch_times.append((time.time() - start_time) * 1000)
+
+        print(
+            f"hybrid_sample_ms avg={sum(hybrid_times) / len(hybrid_times):.4f} "
+            f"min={min(hybrid_times):.4f} max={max(hybrid_times):.4f} iterations={args.iterations}",
+            flush=True,
+        )
+        print(
+            f"torch_sample_actions_ms avg={sum(torch_times) / len(torch_times):.4f} "
+            f"min={min(torch_times):.4f} max={max(torch_times):.4f} iterations={args.iterations}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

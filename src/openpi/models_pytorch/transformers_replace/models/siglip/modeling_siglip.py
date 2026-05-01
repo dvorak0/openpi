@@ -243,8 +243,7 @@ class SiglipVisionEmbeddings(nn.Module):
         num_patches = embeddings.shape[1]
         num_positions = self.position_embedding.weight.shape[0]
 
-        # always interpolate when tracing to ensure the exported model works for dynamic input shapes
-        if not torch.jit.is_tracing() and num_patches == num_positions and height == width:
+        if num_patches == num_positions and height == width:
             return self.position_embedding(self.position_ids)
 
         patch_pos_embed = self.position_embedding.weight.unsqueeze(0)
