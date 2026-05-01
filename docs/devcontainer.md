@@ -1,0 +1,45 @@
+# Development Container Bring-up
+
+This repo includes a lightweight devcontainer-style image for editing on one
+machine and testing on a Docker/NVIDIA host with the source tree bind-mounted.
+It is intended for workflows such as testing on `nixos-1` under
+`/home/dvorak/workspace/openpi` while keeping normal code edits in the git tree.
+
+## Build
+
+From the repository root:
+
+```bash
+docker build -f .devcontainer/Dockerfile -t openpi-dev:local .
+```
+
+## Run with mounted source
+
+```bash
+mkdir -p "${OPENPI_DATA_HOME:-$HOME/.cache/openpi}"
+docker run --rm -it --device nvidia.com/gpu=all --network host \
+  -v "$PWD:/workspace/openpi" \
+  -v "${OPENPI_DATA_HOME:-$HOME/.cache/openpi}:/openpi_assets" \
+  -e OPENPI_DATA_HOME=/openpi_assets \
+  openpi-dev:local bash
+```
+
+Inside the container, run the smoke test:
+
+```bash
+scripts/devcontainer_smoke_test.sh
+```
+
+The `--device nvidia.com/gpu=all` flag matches the CDI-style NVIDIA setup on
+`nixos-1`. On hosts configured with the classic NVIDIA Docker runtime, replace it
+with `--gpus all`.
+
+The smoke test fails fast if the prebuilt virtualenv is missing, verifies that
+core modules import, prints JAX/Torch device visibility, and runs a small pytest
+subset that does not require downloading model checkpoints.
+
+## VS Code / Dev Containers
+
+The `.devcontainer/devcontainer.json` uses the same Dockerfile, mounts the repo
+at `/workspace/openpi`, mounts `OPENPI_DATA_HOME` to `/openpi_assets`, and runs
+`scripts/devcontainer_smoke_test.sh` after creation.

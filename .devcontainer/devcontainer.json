@@ -1,0 +1,29 @@
+{
+  "name": "openpi-dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspace/openpi",
+  "runArgs": [
+    "--device=nvidia.com/gpu=all",
+    "--network=host"
+  ],
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace/openpi,type=bind,consistency=cached",
+    "source=${localEnv:OPENPI_DATA_HOME:${localEnv:HOME}/.cache/openpi},target=/openpi_assets,type=bind"
+  ],
+  "containerEnv": {
+    "OPENPI_DATA_HOME": "/openpi_assets",
+    "IS_DOCKER": "true",
+    "PYTHONPATH": "/workspace/openpi/src:/workspace/openpi/packages/openpi-client/src"
+  },
+  "postCreateCommand": "scripts/devcontainer_smoke_test.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/.venv/bin/python"
+      }
+    }
+  }
+}
