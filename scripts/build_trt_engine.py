@@ -4,6 +4,7 @@
 import dataclasses
 import os
 import time
+from typing import Literal
 
 import tensorrt as trt
 import tyro
@@ -12,8 +13,8 @@ import tyro
 @dataclasses.dataclass(frozen=True)
 class Args:
     onnx: str = "/workspace/openpi_artifacts/pi0_aloha_sim_denoise_step.onnx"
-    engine: str = "/workspace/openpi_artifacts/pi0_aloha_sim_denoise_step_fp16.engine"
-    fp16: bool = True
+    engine: str = "/workspace/openpi_artifacts/pi0_aloha_sim_denoise_step_bf16.engine"
+    precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     workspace_gib: int = 8
 
 
@@ -42,10 +43,14 @@ def main(args: Args) -> None:
 
     config = builder.create_builder_config()
     config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, args.workspace_gib << 30)
-    if args.fp16:
+    if args.precision == "bf16":
+        config.set_flag(trt.BuilderFlag.BF16)
+    elif args.precision == "fp16":
         if not builder.platform_has_fast_fp16:
             raise RuntimeError("Requested fp16 but platform_has_fast_fp16 is false")
         config.set_flag(trt.BuilderFlag.FP16)
+    elif args.precision != "fp32":
+        raise ValueError(args.precision)
 
     start = time.time()
     serialized = builder.build_serialized_network(network, config)

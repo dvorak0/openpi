@@ -10,7 +10,7 @@ import tyro
 
 @dataclasses.dataclass(frozen=True)
 class Args:
-    engine: str = "/workspace/openpi_artifacts/pi0_aloha_sim_denoise_step_fp16.engine"
+    engine: str = "/workspace/openpi_artifacts/pi0_aloha_sim_denoise_step_bf16.engine"
     warmup: int = 20
     iterations: int = 500
 
